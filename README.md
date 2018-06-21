@@ -65,3 +65,118 @@ query NoOfRidesIn5minIntervalBefore02Jan {
   }
 }
 ```
+
+# Citus DB
+1. Create a citus cloud instance, or install your own citus db instance.
+   (https://docs.citusdata.com/en/v7.4/installation/single_machine.html)
+
+2. Follow this tutorial to import a sample dataset. (https://docs.citusdata.com/en/v7.4/use_cases/multi_tenant.html)
+   Follow this tutorial till the point to import data.
+
+3. Follow https://docs.hasura.io to run the GraphQL engine - with the
+   correct database credentials pointing to your citus db instance.
+
+4. Open the console `hasura console`, and track all the tables.
+
+5. Add the hasuradb metadata from the file `citus/metadata.json`. It will add required relationships.
+
+Alternatively:
+From console, object relationship of campaign table to company table can be added. For other tables:
+
+```json
+{
+    "type": "bulk",
+    "args": [
+        {
+            "type": "create_object_relationship",
+            "args": {
+                "table": "ads",
+                "name": "campaign",
+                "using": {
+                    "manual_configuration" : {
+                        "remote_table" : "campaigns",
+                        "column_mapping" : {
+                            "campaign_id" : "id",
+                            "company_id": "company_id"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "type": "create_object_relationship",
+            "args": {
+                "table": "clicks",
+                "name": "ad",
+                "using": {
+                    "manual_configuration" : {
+                        "remote_table" : "ads",
+                        "column_mapping" : {
+                            "ad_id" : "id",
+                            "company_id": "company_id"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "type": "create_object_relationship",
+            "args": {
+                "table": "impressions",
+                "name": "ad",
+                "using": {
+                    "manual_configuration" : {
+                        "remote_table" : "ads",
+                        "column_mapping" : {
+                            "ad_id" : "id",
+                            "company_id": "company_id"
+                        }
+                    }
+                }
+            }
+        }
+
+    ]
+}
+```
+
+6. Then we can make graphql queries :
+
+NOTE: `company_id` is required at top-level for all queries, because its the distribution column in citus.
+
+```graphql
+query AllCampaignsOfCompany5 {
+  campaigns(where: {company_id: {_eq: 5}}) {
+    name
+    company {
+      name
+    }
+    cost_model
+    monthly_budget
+    state
+  }
+}
+
+query AllClicksAndImpressionsOfCompany5 {
+  clicks (where: {company_id: {_eq: 5}}){
+    cost_per_click_usd
+    clicked_at
+    site_url
+    user_ip
+    user_data
+    ad {
+      name
+    }
+  }
+  impressions (where: {company_id: {_eq: 5}}) {
+    cost_per_impression_usd
+    seen_at
+    site_url
+    user_ip
+    user_data
+    ad {
+      name
+    }
+  }
+}
+```
