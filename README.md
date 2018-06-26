@@ -180,3 +180,174 @@ query AllClicksAndImpressionsOfCompany5 {
   }
 }
 ```
+
+7. Create views with complex SQL:
+
+This is the same SQL as the last portion of this section
+https://docs.citusdata.com/en/v7.4/use_cases/multi_tenant.html#integrating-applications,
+with some minor modifications to aggregate all companies.
+
+```sql
+CREATE OR REPLACE VIEW "campaign_ranks" AS
+ SELECT a.campaign_id,
+    rank() OVER (PARTITION BY a.campaign_id, a.company_id ORDER BY a.campaign_id, (count(*)) DESC) AS rank,
+    count(*) AS n_impressions,
+    a.id AS ad_id,
+    a.company_id
+   FROM ads a,
+    impressions i
+  WHERE ((i.company_id = a.company_id) AND (i.ad_id = a.id))
+  GROUP BY a.campaign_id, a.id, a.company_id
+  ORDER BY a.campaign_id, (count(*)) DESC;
+```
+
+Now we can query this view in our GraphQL query as well:
+
+```graphql
+query {
+  campaign_ranks (where: {company_id: {_eq: 5}}) {
+    campaign_id
+    rank
+    n_impressions
+    ad_id
+  }
+}
+```
+
+## Errors/Failures:
+
+1. If we make queries like:
+
+```graphql
+query AllClicksOfCompany5 {
+  clicks (where: {company_id: {_eq: 5}}){
+    cost_per_click_usd
+    clicked_at
+    site_url
+    user_ip
+    user_data
+    ad {
+      name
+      campaign {
+        name
+      }
+    }
+  }
+}
+```
+
+It results in error:
+
+```json
+{
+  "errors": [
+    {
+      "internal": {
+        "statement": "SELECT  coalesce(json_agg((SELECT  \"e\"  FROM  (SELECT  \"r\".\"cost_per_click_usd\" AS \"cost_per_click_usd\", \"r\".\"clicked_at\" AS \"clicked_at\", \"r\".\"site_url\" AS \"site_url\", \"r\".\"user_ip\" AS \"user_ip\", \"r\".\"user_data\" AS \"user_data\", \"r\".\"ad\" AS \"ad\"       ) AS \"e\"      ) ), '[]' )  FROM  (SELECT  \"l\".\"user_ip\" AS \"user_ip\", \"l\".\"cost_per_click_usd\" AS \"cost_per_click_usd\", \"l\".\"site_url\" AS \"site_url\", \"l\".\"clicked_at\" AS \"clicked_at\", \"l\".\"user_data\" AS \"user_data\", \"l\".\"__l_ad_ad_id\" AS \"__l_ad_ad_id\", \"l\".\"__l_ad_company_id\" AS \"__l_ad_company_id\", CASE WHEN (\"r\".\"__r_ad_id\") IS NULL THEN 'null' ELSE row_to_json((SELECT  \"e\"  FROM  (SELECT  \"r\".\"name\" AS \"name\", \"r\".\"campaign\" AS \"campaign\"       ) AS \"e\"      ) ) END AS \"ad\" FROM  (SELECT  \"user_ip\" AS \"user_ip\", \"cost_per_click_usd\" AS \"cost_per_click_usd\", \"site_url\" AS \"site_url\", \"clicked_at\" AS \"clicked_at\", \"user_data\" AS \"user_data\", \"ad_id\" AS \"__l_ad_ad_id\", \"company_id\" AS \"__l_ad_company_id\" FROM \"public\".\"clicks\"  WHERE (('true') AND (('true') AND (((((\"public\".\"clicks\".\"company_id\") = ($1)) OR (((\"public\".\"clicks\".\"company_id\") IS NULL) AND (($1) IS NULL))) AND ('true')) AND ('true'))))     ) AS \"l\" LEFT OUTER JOIN LATERAL (SELECT  \"l\".\"__r_ad_id\" AS \"__r_ad_id\", \"l\".\"name\" AS \"name\", \"l\".\"__l_campaign_campaign_id\" AS \"__l_campaign_campaign_id\", \"l\".\"__l_campaign_company_id\" AS \"__l_campaign_company_id\", CASE WHEN (\"r\".\"__r_campaign_id\") IS NULL THEN 'null' ELSE row_to_json((SELECT  \"e\"  FROM  (SELECT  \"r\".\"name\" AS \"name\"       ) AS \"e\"      ) ) END AS \"campaign\" FROM  (SELECT  \"id\" AS \"__r_ad_id\", \"name\" AS \"name\", \"campaign_id\" AS \"__l_campaign_campaign_id\", \"company_id\" AS \"__l_campaign_company_id\" FROM \"public\".\"ads\"  WHERE ((((\"l\".\"__l_ad_ad_id\") = (\"id\")) AND (((\"l\".\"__l_ad_company_id\") = (\"company_id\")) AND ('true'))) AND (('true') AND ('true')))     ) AS \"l\" LEFT OUTER JOIN LATERAL (SELECT  \"id\" AS \"__r_campaign_id\", \"name\" AS \"name\" FROM \"public\".\"campaigns\"  WHERE ((((\"l\".\"__l_campaign_campaign_id\") = (\"id\")) AND (((\"l\".\"__l_campaign_company_id\") = (\"company_id\")) AND ('true'))) AND (('true') AND ('true')))     ) AS \"r\" ON ('true')      ) AS \"r\" ON ('true')      ) AS \"r\"      ",
+        "prepared": true,
+        "error": {
+          "exec_status": "FatalError",
+          "hint": "Consider using an equality filter on the distributed table's partition column.",
+          "message": "could not run distributed query with subquery outside the FROM and WHERE clauses",
+          "status_code": "0A000",
+          "description": null
+        },
+        "arguments": [
+          "(Oid 20,Just (\"\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\ENQ\",Binary))"
+        ]
+      },
+      "path": "$[0].args",
+      "error": "postgres query error",
+      "code": "postgres-error"
+    }
+  ]
+}
+```
+
+2. If we add relationships in the `campaign_ranks` view, like so:
+
+```json
+[
+  {
+    "using": {
+      "manual_configuration": {
+        "remote_table": "companies",
+        "column_mapping": {
+          "company_id": "id"
+        }
+      }
+    },
+    "name": "company",
+    "comment": null
+  },
+  {
+    "using": {
+      "manual_configuration": {
+        "remote_table": "ads",
+        "column_mapping": {
+          "ad_id": "id"
+        }
+      }
+    },
+    "name": "ad",
+    "comment": null
+  },
+  {
+    "using": {
+      "manual_configuration": {
+        "remote_table": "campaigns",
+        "column_mapping": {
+          "ad_id": "id"
+        }
+      }
+    },
+    "name": "campaign",
+    "comment": null
+  }
+]
+```
+
+Then this query fails:
+
+```graphql
+query {
+  campaign_ranks (where: {company_id: {_eq: 5}}) {
+    campaign {
+      name
+    }
+    rank
+    n_impressions
+    ad {
+      name
+    }
+  }
+}
+```
+
+With this error:
+
+```json
+{
+  "errors": [
+    {
+      "internal": {
+        "statement": "SELECT  coalesce(json_agg((SELECT  \"e\"  FROM  (SELECT  \"r\".\"campaign\" AS \"campaign\", \"r\".\"rank\" AS \"rank\", \"r\".\"n_impressions\" AS \"n_impressions\", \"r\".\"ad\" AS \"ad\"       ) AS \"e\"      ) ), '[]' )  FROM  (SELECT  \"l\".\"rank\" AS \"rank\", \"l\".\"n_impressions\" AS \"n_impressions\", \"l\".\"__l_ad_ad_id\" AS \"__l_ad_ad_id\", \"l\".\"__l_campaign_ad_id\" AS \"__l_campaign_ad_id\", \"l\".\"campaign\" AS \"campaign\", CASE WHEN (\"r\".\"__r_ad_id\") IS NULL THEN 'null' ELSE row_to_json((SELECT  \"e\"  FROM  (SELECT  \"r\".\"name\" AS \"name\"       ) AS \"e\"      ) ) END AS \"ad\" FROM  (SELECT  \"l\".\"rank\" AS \"rank\", \"l\".\"n_impressions\" AS \"n_impressions\", \"l\".\"__l_ad_ad_id\" AS \"__l_ad_ad_id\", \"l\".\"__l_campaign_ad_id\" AS \"__l_campaign_ad_id\", CASE WHEN (\"r\".\"__r_campaign_id\") IS NULL THEN 'null' ELSE row_to_json((SELECT  \"e\"  FROM  (SELECT  \"r\".\"name\" AS \"name\"       ) AS \"e\"      ) ) END AS \"campaign\" FROM  (SELECT  \"rank\" AS \"rank\", \"n_impressions\" AS \"n_impressions\", \"ad_id\" AS \"__l_ad_ad_id\", \"ad_id\" AS \"__l_campaign_ad_id\" FROM \"public\".\"campaign_ranks\"  WHERE (('true') AND (('true') AND (((((\"public\".\"campaign_ranks\".\"company_id\") = ($1)) OR (((\"public\".\"campaign_ranks\".\"company_id\") IS NULL) AND (($1) IS NULL))) AND ('true')) AND ('true'))))     ) AS \"l\" LEFT OUTER JOIN LATERAL (SELECT  \"id\" AS \"__r_campaign_id\", \"name\" AS \"name\" FROM \"public\".\"campaigns\"  WHERE ((((\"l\".\"__l_campaign_ad_id\") = (\"id\")) AND ('true')) AND (('true') AND ('true')))     ) AS \"r\" ON ('true')      ) AS \"l\" LEFT OUTER JOIN LATERAL (SELECT  \"id\" AS \"__r_ad_id\", \"name\" AS \"name\" FROM \"public\".\"ads\"  WHERE ((((\"l\".\"__l_ad_ad_id\") = (\"id\")) AND ('true')) AND (('true') AND ('true')))     ) AS \"r\" ON ('true')      ) AS \"r\"      ",
+        "prepared": true,
+        "error": {
+          "exec_status": "FatalError",
+          "hint": "Consider using an equality filter on the distributed table's partition column.",
+          "message": "could not run distributed query with subquery outside the FROM and WHERE clauses",
+          "status_code": "0A000",
+          "description": null
+        },
+        "arguments": [
+          "(Oid 20,Just (\"\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\ENQ\",Binary))"
+        ]
+      },
+      "path": "$[0].args",
+      "error": "postgres query error",
+      "code": "postgres-error"
+    }
+  ]
+}
+```
