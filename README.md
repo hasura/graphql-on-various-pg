@@ -216,7 +216,9 @@ query {
 
 ## Errors/Failures:
 
-1. If we make queries like:
+**Edit**: #1 works now:
+
+~1. If we make queries like:~
 
 ```graphql
 query AllClicksOfCompany5 {
@@ -331,12 +333,12 @@ With this error:
   "errors": [
     {
       "internal": {
-        "statement": "SELECT  coalesce(json_agg((SELECT  \"e\"  FROM  (SELECT  \"r\".\"campaign\" AS \"campaign\", \"r\".\"rank\" AS \"rank\", \"r\".\"n_impressions\" AS \"n_impressions\", \"r\".\"ad\" AS \"ad\"       ) AS \"e\"      ) ), '[]' )  FROM  (SELECT  \"l\".\"rank\" AS \"rank\", \"l\".\"n_impressions\" AS \"n_impressions\", \"l\".\"__l_ad_ad_id\" AS \"__l_ad_ad_id\", \"l\".\"__l_campaign_ad_id\" AS \"__l_campaign_ad_id\", \"l\".\"campaign\" AS \"campaign\", CASE WHEN (\"r\".\"__r_ad_id\") IS NULL THEN 'null' ELSE row_to_json((SELECT  \"e\"  FROM  (SELECT  \"r\".\"name\" AS \"name\"       ) AS \"e\"      ) ) END AS \"ad\" FROM  (SELECT  \"l\".\"rank\" AS \"rank\", \"l\".\"n_impressions\" AS \"n_impressions\", \"l\".\"__l_ad_ad_id\" AS \"__l_ad_ad_id\", \"l\".\"__l_campaign_ad_id\" AS \"__l_campaign_ad_id\", CASE WHEN (\"r\".\"__r_campaign_id\") IS NULL THEN 'null' ELSE row_to_json((SELECT  \"e\"  FROM  (SELECT  \"r\".\"name\" AS \"name\"       ) AS \"e\"      ) ) END AS \"campaign\" FROM  (SELECT  \"rank\" AS \"rank\", \"n_impressions\" AS \"n_impressions\", \"ad_id\" AS \"__l_ad_ad_id\", \"ad_id\" AS \"__l_campaign_ad_id\" FROM \"public\".\"campaign_ranks\"  WHERE (('true') AND (('true') AND (((((\"public\".\"campaign_ranks\".\"company_id\") = ($1)) OR (((\"public\".\"campaign_ranks\".\"company_id\") IS NULL) AND (($1) IS NULL))) AND ('true')) AND ('true'))))     ) AS \"l\" LEFT OUTER JOIN LATERAL (SELECT  \"id\" AS \"__r_campaign_id\", \"name\" AS \"name\" FROM \"public\".\"campaigns\"  WHERE ((((\"l\".\"__l_campaign_ad_id\") = (\"id\")) AND ('true')) AND (('true') AND ('true')))     ) AS \"r\" ON ('true')      ) AS \"l\" LEFT OUTER JOIN LATERAL (SELECT  \"id\" AS \"__r_ad_id\", \"name\" AS \"name\" FROM \"public\".\"ads\"  WHERE ((((\"l\".\"__l_ad_ad_id\") = (\"id\")) AND ('true')) AND (('true') AND ('true')))     ) AS \"r\" ON ('true')      ) AS \"r\"      ",
+        "statement": "SELECT  coalesce(json_agg(json_build_object('campaign', \"r\".\"campaign\", 'rank', \"r\".\"rank\", 'n_impressions', \"r\".\"n_impressions\" ) ), '[]' )  FROM  (SELECT  \"l\".\"rank\" AS \"rank\", \"l\".\"n_impressions\" AS \"n_impressions\", \"l\".\"__l_campaign_ad_id\" AS \"__l_campaign_ad_id\", CASE WHEN (\"r\".\"__r_campaign_id\") IS NULL THEN 'null' ELSE json_build_object('name', \"r\".\"name\" ) END AS \"campaign\" FROM  (SELECT  \"rank\" AS \"rank\", \"n_impressions\" AS \"n_impressions\", \"ad_id\" AS \"__l_campaign_ad_id\" FROM \"public\".\"campaign_ranks\"  WHERE (('true') AND (('true') AND (((((\"public\".\"campaign_ranks\".\"company_id\") = ($1)) OR (((\"public\".\"campaign_ranks\".\"company_id\") IS NULL) AND (($1) IS NULL))) AND ('true')) AND ('true'))))     ) AS \"l\" LEFT OUTER JOIN LATERAL (SELECT  \"id\" AS \"__r_campaign_id\", \"name\" AS \"name\" FROM \"public\".\"campaigns\"  WHERE ((((\"l\".\"__l_campaign_ad_id\") = (\"id\")) AND ('true')) AND (('true') AND ('true')))     ) AS \"r\" ON ('true')      ) AS \"r\"      ",
         "prepared": true,
         "error": {
           "exec_status": "FatalError",
-          "hint": "Consider using an equality filter on the distributed table's partition column.",
-          "message": "could not run distributed query with subquery outside the FROM and WHERE clauses",
+          "hint": null,
+          "message": "complex joins are only supported when all distributed tables are joined on their distribution columns with equal operator",
           "status_code": "0A000",
           "description": null
         },
@@ -344,7 +346,7 @@ With this error:
           "(Oid 20,Just (\"\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\ENQ\",Binary))"
         ]
       },
-      "path": "$[0].args",
+      "path": "$",
       "error": "postgres query error",
       "code": "postgres-error"
     }
