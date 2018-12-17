@@ -13,10 +13,6 @@ Hasura on Citus. This uses Citus 8.0 and Hasura v1.0.0-alpha31.
 
 1. Download the `docker-compose.yaml` file
 
-```shell
-$ curl -O https://raw.githubusercontent.com/hasura/graphql-on-various-pg/master/citus/docker-compose.yaml
-```
-
 2. Run `docker-compose -p citus up -d`
 
 This will start a Citus cluster with one worker, and a Hasura GraphQL Engine pointing to the citus instance.
@@ -26,7 +22,6 @@ This will start a Citus cluster with one worker, and a Hasura GraphQL Engine poi
 1. Download the `load_sample_data.sh` and run it to load sample data into the citus instance.
 
 ```shell
-$ curl -O https://raw.githubusercontent.com/hasura/graphql-on-various-pg/master/citus/load_sample_data.sh
 $ chmod +x load_sample_data.sh && ./load_sample_data.sh
 ```
 
@@ -39,15 +34,16 @@ $ chmod +x load_sample_data.sh && ./load_sample_data.sh
 
 ## The schema
 
-All the tables are distributed tables. The distribution column is `company_id` (`id` in the `companies` table).
+All the tables are distributed tables. The distribution column is `company_id`
+(for `companies` table it is the `id` column).
 
-The rest of the tables has the following schema:
+Following are the tables and foreign key references among them:
 
 1. `companies`
-2. `campaigns` :: has foreign key ref to `companies` via `company_id`
-3. `ads` :: has foreign key ref to `campaigns` via `campaign_id` and `companies` via `company_id`
-4. `clicks` :: has foreign key ref to `ads` via `ad_id` and `companies` via `company_id`
-5. `impressions` :: has foreign key ref to `ads` via `ad_id` and `companies` via `company_id`
+2. `campaigns` : `campaigns.company_id` -> `companies.id`
+3. `ads` : `ads.campaign_id` -> `campaigns.id` , `ads.company_id` -> `companies.id` 
+4. `clicks` :  `clicks.ad_id` -> `ads.id` , `clicks.company_id` -> `companies.id` 
+5. `impressions` : `impressions.ad_id` -> `ads.id` , `impressions.company_id` -> `companies.id` 
 
 ## Hasura relationships
 
@@ -305,7 +301,7 @@ Fails with error:
 ```
 
 
-1. Add permissions to the `companies` table:
+3. Add permissions to the `companies` table:
 
 Role: user
 Query: select
