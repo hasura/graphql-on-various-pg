@@ -9,6 +9,17 @@ set -e
 
 curl -o sample_schema.sql https://examples.citusdata.com/mt_ref_arch/schema.sql
 
+cat <<EOF >> sample_schema.sql
+
+CREATE EXTENSION IF NOT EXISTS citus;
+
+SELECT create_distributed_table('companies',   'id');
+SELECT create_distributed_table('campaigns',   'company_id');
+SELECT create_distributed_table('ads',         'company_id');
+SELECT create_distributed_table('clicks',      'company_id');
+SELECT create_distributed_table('impressions', 'company_id');
+EOF
+
 psql -U postgres -h localhost -d postgres < sample_schema.sql
 
 # download and ingest datasets from the shell

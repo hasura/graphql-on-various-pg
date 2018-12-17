@@ -1,0 +1,17 @@
+query ($companyId: bigint!) {
+  ads (where: {company_id: {_eq: $companyId}}) {
+    name
+    image_url
+    campaign {
+      name
+      company {
+        name
+      }
+    }
+    impressions (where: {company_id: {_eq: $companyId}}) {
+      cost_per_impression_usd
+      seen_at
+      site_url
+    }
+  }
+}

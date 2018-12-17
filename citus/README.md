@@ -14,7 +14,7 @@ Hasura on Citus. This uses Citus 8.0 and Hasura v1.0.0-alpha31.
 1. Download the `docker-compose.yaml` file
 
 ```shell
-$ curl -o ...
+$ curl -O https://raw.githubusercontent.com/hasura/graphql-on-various-pg/master/citus/docker-compose.yaml
 ```
 
 2. Run `docker-compose -p citus up -d`
@@ -26,7 +26,7 @@ This will start a Citus cluster with one worker, and a Hasura GraphQL Engine poi
 1. Download the `load_sample_data.sh` and run it to load sample data into the citus instance.
 
 ```shell
-$ curl -o ....
+$ curl -O https://raw.githubusercontent.com/hasura/graphql-on-various-pg/master/citus/load_sample_data.sh
 $ chmod +x load_sample_data.sh && ./load_sample_data.sh
 ```
 
@@ -126,24 +126,6 @@ query AllClicksAndImpressionsOfCompany ($companyId: bigint!) {
   }
 }
 
-query AdsOfACompany ($companyId: bigint!) {
-  ads (where: {company_id: {_eq: $companyId}}) {
-    name
-    image_url
-    campaign {
-      name
-      company {
-        name
-      }
-    }
-    impressions (where: {company_id: {_eq: $companyId}}) {
-      cost_per_impression_usd
-      seen_at
-      site_url
-    }
-  }
-}
-
 ```
 
 ### Additional querying with Citus specific functions
@@ -181,7 +163,60 @@ query {
 }
 ```
 
-We can also add object relationships in the `campaign_ranks` view, to the `campaigns` table and `ads` table.
+## Errors/Failures
+
+1. Following query does not work:
+
+```graphql
+query AdsOfACompany ($companyId: bigint!) {
+  ads (where: {company_id: {_eq: $companyId}}) {
+    name
+    image_url
+    campaign {
+      name
+      company {
+        name
+      }
+    }
+    impressions (where: {company_id: {_eq: $companyId}}) {
+      cost_per_impression_usd
+      seen_at
+      site_url
+    }
+  }
+}
+```
+
+Results in error:
+
+```json
+{
+  "errors": [
+    {
+      "internal": {
+        "statement": "SELECT  coalesce(json_agg(\"root\" ), '[]' ) AS \"root\" FROM  (SELECT  row_to_json((SELECT  \"_11_e\"  FROM  (SELECT  \"_0_root.base\".\"name\" AS \"name\", \"_0_root.base\".\"image_url\" AS \"image_url\", \"_6_root.or.campaign\".\"campaign\" AS \"campaign\", \"_10_root.ar.root.impressions\".\"impressions\" AS \"impressions\"       ) AS \"_11_e\"      ) ) AS \"root\" FROM  (SELECT  *  FROM \"public\".\"ads\"  WHERE (((\"public\".\"ads\".\"company_id\") = ($1)) OR (((\"public\".\"ads\".\"company_id\") IS NULL) AND (($1) IS NULL)))     ) AS \"_0_root.base\" LEFT OUTER JOIN LATERAL (SELECT  row_to_json((SELECT  \"_5_e\"  FROM  (SELECT  \"_1_root.or.campaign.base\".\"name\" AS \"name\", \"_4_root.or.campaign.or.company\".\"company\" AS \"company\"       ) AS \"_5_e\"      ) ) AS \"campaign\" FROM  (SELECT  *  FROM \"public\".\"campaigns\"  WHERE (((\"_0_root.base\".\"campaign_id\") = (\"id\")) AND ((\"_0_root.base\".\"company_id\") = (\"company_id\")))     ) AS \"_1_root.or.campaign.base\" LEFT OUTER JOIN LATERAL (SELECT  row_to_json((SELECT  \"_3_e\"  FROM  (SELECT  \"_2_root.or.campaign.or.company.base\".\"name\" AS \"name\"       ) AS \"_3_e\"      ) ) AS \"company\" FROM  (SELECT  *  FROM \"public\".\"companies\"  WHERE ((\"_1_root.or.campaign.base\".\"company_id\") = (\"id\"))     ) AS \"_2_root.or.campaign.or.company.base\"      ) AS \"_4_root.or.campaign.or.company\" ON ('true')      ) AS \"_6_root.or.campaign\" ON ('true') LEFT OUTER JOIN LATERAL (SELECT  coalesce(json_agg(\"impressions\" ), '[]' ) AS \"impressions\" FROM  (SELECT  row_to_json((SELECT  \"_8_e\"  FROM  (SELECT  \"_7_root.ar.root.impressions.base\".\"cost_per_impression_usd\" AS \"cost_per_impression_usd\", \"_7_root.ar.root.impressions.base\".\"seen_at\" AS \"seen_at\", \"_7_root.ar.root.impressions.base\".\"site_url\" AS \"site_url\"       ) AS \"_8_e\"      ) ) AS \"impressions\" FROM  (SELECT  *  FROM \"public\".\"impressions\"  WHERE ((((\"_0_root.base\".\"company_id\") = (\"company_id\")) AND ((\"_0_root.base\".\"id\") = (\"ad_id\"))) AND (((\"public\".\"impressions\".\"company_id\") = ($2)) OR (((\"public\".\"impressions\".\"company_id\") IS NULL) AND (($2) IS NULL))))     ) AS \"_7_root.ar.root.impressions.base\"      ) AS \"_9_root.ar.root.impressions\"      ) AS \"_10_root.ar.root.impressions\" ON ('true')      ) AS \"_12_root\"      ",
+        "prepared": true,
+        "error": {
+          "exec_status": "FatalError",
+          "hint": null,
+          "message": "cannot push down this subquery",
+          "status_code": "0A000",
+          "description": "Aggregates without group by are currently unsupported when a subquery references a column from another query"
+        },
+        "arguments": [
+          "(Oid 20,Just (\"\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\ENQ\",Binary))",
+          "(Oid 20,Just (\"\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\ENQ\",Binary))"
+        ]
+      },
+      "path": "$",
+      "error": "postgres query error",
+      "code": "postgres-error"
+    }
+  ]
+}
+```
+
+2. Add object relationships in the `campaign_ranks` view, to the `campaigns` table and `ads` table.
 
 ```json
 [
@@ -239,4 +274,79 @@ query {
     }
   }
 }
+```
+
+Fails with error:
+
+```json
+{
+  "errors": [
+    {
+      "internal": {
+        "statement": "SELECT  coalesce(json_agg(\"root\" ), '[]' ) AS \"root\" FROM  (SELECT  row_to_json((SELECT  \"_7_e\"  FROM  (SELECT  \"_6_root.or.campaign\".\"campaign\" AS \"campaign\", (\"_0_root.base\".\"rank\")::text AS \"rank\", (\"_0_root.base\".\"n_impressions\")::text AS \"n_impressions\", \"_3_root.or.ad\".\"ad\" AS \"ad\"       ) AS \"_7_e\"      ) ) AS \"root\" FROM  (SELECT  *  FROM \"public\".\"campaign_ranks\"  WHERE (((\"public\".\"campaign_ranks\".\"company_id\") = ($1)) OR (((\"public\".\"campaign_ranks\".\"company_id\") IS NULL) AND (($1) IS NULL)))     ) AS \"_0_root.base\" LEFT OUTER JOIN LATERAL (SELECT  row_to_json((SELECT  \"_2_e\"  FROM  (SELECT  \"_1_root.or.ad.base\".\"name\" AS \"name\"       ) AS \"_2_e\"      ) ) AS \"ad\" FROM  (SELECT  *  FROM \"public\".\"ads\"  WHERE ((\"_0_root.base\".\"ad_id\") = (\"id\"))     ) AS \"_1_root.or.ad.base\"      ) AS \"_3_root.or.ad\" ON ('true') LEFT OUTER JOIN LATERAL (SELECT  row_to_json((SELECT  \"_5_e\"  FROM  (SELECT  \"_4_root.or.campaign.base\".\"name\" AS \"name\"       ) AS \"_5_e\"      ) ) AS \"campaign\" FROM  (SELECT  *  FROM \"public\".\"campaigns\"  WHERE ((\"_0_root.base\".\"campaign_id\") = (\"id\"))     ) AS \"_4_root.or.campaign.base\"      ) AS \"_6_root.or.campaign\" ON ('true')      ) AS \"_8_root\"      ",
+        "prepared": true,
+        "error": {
+          "exec_status": "FatalError",
+          "hint": "Consider using an equality filter on the distributed table's partition column.",
+          "message": "could not run distributed query with subquery outside the FROM and WHERE clauses",
+          "status_code": "0A000",
+          "description": null
+        },
+        "arguments": [
+          "(Oid 20,Just (\"\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\ENQ\",Binary))"
+        ]
+      },
+      "path": "$",
+      "error": "postgres query error",
+      "code": "postgres-error"
+    }
+  ]
+}
+```
+
+
+1. Add permissions to the `companies` table:
+
+Role: user
+Query: select
+Columns: all
+Custom check: `{"id":{"_eq":"x-hasura-company-id"}}`
+
+Then making query:
+
+```graphql
+query {
+  companies (where: {id: {_eq: 5}}) {
+    name
+  }
+}
+```
+
+With headers:
+
+```
+x-hasura-role: user
+x-hasura-company-id: 5
+```
+
+Results in:
+
+```json
+{
+  "errors": [
+    {
+      "path": "$",
+      "error": "postgres query error",
+      "code": "postgres-error"
+    }
+  ]
+}
+```
+
+Docker logs output:
+```
+WARNING:  unrecognized configuration parameter "hasura.user"
+CONTEXT:  while executing command on citus_worker_1:5432
+{"timestamp":"2018-12-17T13:52:30.729+0000","level":"info","type":"http-log","detail":{"status":500,"query_hash":"166c2438e839e201bd91a57873629136a9ec1d92","http_version":"HTTP/1.1","query_execution_time":1.7499646e-2,"request_id":null,"url":"/v1alpha1/graphql","ip":"122.171.161.60","response_size":1006,"user":{"x-hasura-role":"user","x-hasura-company-id":"5"},"method":"POST","detail":{"error":{"internal":{"statement":"SELECT  coalesce(json_agg(\"root\" ), '[]' ) AS \"root\" FROM  (SELECT  row_to_json((SELECT  \"_1_e\"  FROM  (SELECT  \"_0_root.base\".\"name\" AS \"name\"       ) AS \"_1_e\"      ) ) AS \"root\" FROM  (SELECT  *  FROM \"public\".\"companies\"  WHERE ((((\"public\".\"companies\".\"id\") = (((current_setting('hasura.user')::json->>'x-hasura-company-id'))::bigint)) OR (((\"public\".\"companies\".\"id\") IS NULL) AND ((((current_setting('hasura.user')::json->>'x-hasura-company-id'))::bigint) IS NULL))) AND (((\"public\".\"companies\".\"id\") = ($1)) OR (((\"public\".\"companies\".\"id\") IS NULL) AND (($1) IS NULL))))     ) AS \"_0_root.base\"      ) AS \"_2_root\"      ","prepared":true,"error":{"exec_status":"FatalError","hint":null,"message":"could not receive query results","status_code":"XX000","description":null},"arguments":["(Oid 20,Just (\"\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\NUL\\ENQ\",Binary))"]},"path":"$","error":"postgres query error","code":"postgres-error"},"request":"{\"query\":\"query {\\n  companies (where: {id: {_eq: 5}}) {\\n    name\\n  }\\n}\",\"variables\":null}"}}}
+
 ```

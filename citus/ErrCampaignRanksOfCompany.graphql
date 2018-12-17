@@ -1,0 +1,13 @@
+query {
+  campaign_ranks (where: {company_id: {_eq: 5}}) {
+    campaign {
+      name
+    }
+    rank
+    n_impressions
+    ad {
+      name
+    }
+  }
+}
+
