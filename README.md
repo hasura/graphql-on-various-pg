@@ -1,6 +1,6 @@
-# Running Hasura's GrapQL engine on various Postgres instances
+# Hasura GraphQL engine on various Postgres flavours
 
-# TimescaleDB
+## TimescaleDB
 
 1. Follow the timescale tutorial to install and run a timescale db instance.
    (https://docs.timescale.com/v0.9/getting-started/installation/mac/installation-homebrew)
@@ -66,6 +66,6 @@ query NoOfRidesIn5minIntervalBefore02Jan {
 }
 ```
 
-# Citus DB
+## Citus DB
 
 See details in `citus/README.md`.
