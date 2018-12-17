@@ -1,0 +1,22 @@
+query AllClicksAndImpressionsOfCompany ($companyId: bigint!) {
+  clicks (where: {company_id: {_eq: $companyId}}){
+    cost_per_click_usd
+    clicked_at
+    site_url
+    user_ip
+    user_data
+    ad {
+      name
+    }
+  }
+  impressions (where: {company_id: {_eq: $companyId}}) {
+    cost_per_impression_usd
+    seen_at
+    site_url
+    user_ip
+    user_data
+    ad {
+      name
+    }
+  }
+}

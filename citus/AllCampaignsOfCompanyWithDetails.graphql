@@ -1,0 +1,27 @@
+query AllCampaignsOfCompany5 ($companyId: bigint!) {
+  campaigns(where: {company_id: {_eq: $companyId}}) {
+    name
+    company {
+      name
+    }
+    cost_model
+    monthly_budget
+    state
+    ads (where: {company_id: {_eq: $companyId}}){
+      id
+      campaign {
+        name
+      }
+      clicks (where: {company_id: {_eq: $companyId}}) {
+        clicked_at
+        site_url
+        cost_per_click_usd
+      }
+      impressions (where: {company_id: {_eq: $companyId}}){
+        seen_at
+        site_url
+        cost_per_impression_usd
+      }
+    }
+  }
+}

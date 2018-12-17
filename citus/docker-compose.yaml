@@ -1,0 +1,37 @@
+version: '2.1'
+
+services:
+  master:
+    container_name: "${COMPOSE_PROJECT_NAME:-citus}_master"
+    image: 'citusdata/citus:8.0.0'
+    ports:
+    - "${MASTER_EXTERNAL_PORT:-5432}:5432"
+    labels:
+    - 'com.citusdata.role=Master'
+  worker:
+    image: 'citusdata/citus:8.0.0'
+    labels:
+    - 'com.citusdata.role=Worker'
+    depends_on:
+      manager:
+        condition: service_healthy
+  manager:
+    container_name: "${COMPOSE_PROJECT_NAME:-citus}_manager"
+    image: 'citusdata/membership-manager:0.2.0'
+    volumes:
+    - '/var/run/docker.sock:/var/run/docker.sock'
+    depends_on: 
+      master:
+        condition: service_healthy
+
+  hasura-graphql-engine:
+    container_name: "${COMPOSE_PROJECT_NAME:-citus}_hasura"
+    image: 'hasura/graphql-engine:v1.0.0-alpha31'
+    ports:
+    - "${HASURA_EXTERNAL_PORT:-8080}:8080"
+    depends_on:
+    - master
+    restart: always
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:@master:5432/postgres
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true" # set to "false" to disable console

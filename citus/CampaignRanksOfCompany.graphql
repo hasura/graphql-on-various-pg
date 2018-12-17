@@ -1,0 +1,8 @@
+query CampaignRanksOfCompany($companyId: bigint!) {
+  campaign_ranks (where: {company_id: {_eq: $companyId}}) {
+    campaign_id
+    rank
+    n_impressions
+    ad_id
+  }
+}

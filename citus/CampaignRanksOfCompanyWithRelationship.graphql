@@ -1,0 +1,18 @@
+query CampaignRanksOfCompany($companyId: bigint!) {
+  campaign_ranks (
+    where: {
+      _and: [
+      	{company_id: {_eq: $companyId}},
+      	{ad: {company_id: {_eq: $companyId}}}
+      ]
+    }
+  ) {
+    campaign_id
+    rank
+    n_impressions
+    ad_id
+    ad {
+      id
+    }
+  }
+}
